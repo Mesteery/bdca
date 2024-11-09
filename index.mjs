@@ -38,7 +38,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         .setCustomId('grade')
         .setLabel(`Ta note sur ${scale}`)
         .setMaxLength(1)
-        .setMaxLength(scale.length + 5)
+        .setMaxLength(scale.length + 4)
         .setPlaceholder('Ex. 18,94')
         .setRequired(true)
         .setStyle(TextInputStyle.Short);
@@ -55,16 +55,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return interaction.reply({ content: 'Tu dois soumettre une note valide !', ephemeral: true });
 
       const rankLines = interaction.message.content.split('\n');
-      if (rankLines.length < 5) rankLines.push('');
-      rankLines[3] = `> **Notes** : ${rankLines.length - 5 + 1}`;
+      if (rankLines.length < 3) rankLines.push('');
 
       let i;
-      for (i = 5; i < rankLines.length; i++) {
+      for (i = 3; i < rankLines.length; i++) {
         if (grade > parseFloat(rankLines[i].slice(9))) break;
       }
-      rankLines.splice(i, 0, `**${(i - 5 + 1).toString().padStart(2, ' ')}** - ${grade}`);
+      rankLines.splice(i, 0, `**${(i - 3 + 1).toString().padStart(2, ' ')}** - ${grade}`);
       for (let j = i + 1; j < rankLines.length; j++) {
-        rankLines[j] = `**${(j - 5 + 1).toString().padStart(2, ' ')}${rankLines[j].slice(4)}`;
+        rankLines[j] = `**${(j - 3 + 1).toString().padStart(2, ' ')}${rankLines[j].slice(4)}`;
       }
 
       await interaction.update({ content: rankLines.join('\n') });

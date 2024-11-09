@@ -74,9 +74,7 @@ export const rank = {
         await channel.send({
             content:
 `[${topic[1]}] Classement **${title}**
-
-> **Barème** : ${scale}
-> **Notes** : 0`,
+> **Barème** : ${scale}`,
             components: [new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId(`${topic.join(':')}:${scale}`)
