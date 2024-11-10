@@ -15,9 +15,21 @@ await client.login(process.env.CLIENT_TOKEN);
 
 console.log('Bot is ready');
 
+function addGradeToRank(rankLines, grade) {
+  if (rankLines.length < 3) rankLines.push('');
+  let i;
+  for (i = 3; i < rankLines.length; i++) {
+    if (grade > parseFloat(rankLines[i].slice(9))) break;
+  }
+  rankLines.splice(i, 0, `**${(i - 3 + 1).toString().padStart(2, ' ')}** - ${grade}`);
+  for (let j = i + 1; j < rankLines.length; j++)
+    rankLines[j] = `**${(j - 3 + 1).toString().padStart(2, ' ')}${rankLines[j].slice(4)}`;
+  return rankLines;
+}
+
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
-    if (interaction.isChatInputCommand()) {
+    if (interaction.isChatInputCommand() || interaction.isMessageContextMenuCommand()) {
       const command = commands[interaction.commandName];
       if (!command) return;
       await command.execute(interaction);
@@ -32,12 +44,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const bitfield = submitStorageMsg ? BigInt(submitStorageMsg.content.split(':')[1]) : 0n;
       if (bitfield & (1n << BigInt(id - 1)))
-        return interaction.reply({ content: `Tu as déjà soumis ta note à ce classement !`, ephemeral: true });
+        return interaction.reply({ content: 'Tu as déjà soumis ta note à ce classement !', ephemeral: true });
 
       const gradeInput = new TextInputBuilder()
         .setCustomId('grade')
         .setLabel(`Ta note sur ${scale}`)
-        .setMaxLength(1)
+        .setMinLength(1)
         .setMaxLength(scale.length + 4)
         .setPlaceholder('Ex. 18,94')
         .setRequired(true)
@@ -50,25 +62,47 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await interaction.showModal(modal);
     } else if (interaction.isModalSubmit()) {
-      const grade = parseFloat(interaction.fields.getTextInputValue('grade').replace(',', '.'));
+      // admin tools
+      let grade = interaction.fields.getTextInputValue('grade').replace(',', '.');
+      if (interaction.customId.startsWith('remove_grade:')) {
+        const message = await interaction.channel.messages.fetch(interaction.customId.slice('remove_grade:'.length)).catch(() => {});
+        if (!message)
+          return interaction.reply({ content: 'Le message ciblé n\'existe plus !', ephemeral: true });
+
+        const rankLines = message.content.split('\n');
+        if (rankLines.length === 2)
+          return interaction.reply({ content: 'Ce classement ne contient aucune note !', ephemeral: true });
+
+        let i;
+        for (i = 3; i < rankLines.length; i++) {
+          if (grade === rankLines[i].slice(9)) break;
+        }
+        rankLines.splice(i, 1);
+        for (let j = i; j < rankLines.length; j++)
+          rankLines[j] = `**${(j - 3 + 1).toString().padStart(2, ' ')}${rankLines[j].slice(4)}`;
+
+        await message.edit(rankLines.join('\n'));
+        return interaction.reply({ content: 'La note a bien été enlevé de ce classement !', ephemeral: true });
+      }
+
+      grade = parseFloat(grade);
+      if (interaction.customId.startsWith('add_grade:')) {
+        const message = await interaction.channel.messages.fetch(interaction.customId.slice('add_grade:'.length)).catch(() => {});
+
+        if (!message || message.author.id !== client.user.id || message.author.system)
+          return interaction.reply({ content: "Le message ciblé n'est pas un classement !", ephemeral: true });
+
+        const rankLines = message.content.split('\n');
+        await message.edit(addGradeToRank(rankLines, grade).join('\n'));
+        return interaction.reply({ content: 'La note a bien été ajoutée à ce classement !', ephemeral: true });
+      }
+
       if (isNaN(grade) || grade < 0)
         return interaction.reply({ content: 'Tu dois soumettre une note valide !', ephemeral: true });
 
       const rankLines = interaction.message.content.split('\n');
-      if (rankLines.length < 3) rankLines.push('');
-
-      let i;
-      for (i = 3; i < rankLines.length; i++) {
-        if (grade > parseFloat(rankLines[i].slice(9))) break;
-      }
-      rankLines.splice(i, 0, `**${(i - 3 + 1).toString().padStart(2, ' ')}** - ${grade}`);
-      for (let j = i + 1; j < rankLines.length; j++) {
-        rankLines[j] = `**${(j - 3 + 1).toString().padStart(2, ' ')}${rankLines[j].slice(4)}`;
-      }
-
-      await interaction.update({ content: rankLines.join('\n') });
-  
-      await interaction.followUp({ content: `Ta note a bien été ajouté à ce classement !`, ephemeral: true });
+      await interaction.update({ content: addGradeToRank(rankLines, grade).join('\n') });
+      await interaction.followUp({ content: 'Ta note a bien été ajouté à ce classement !', ephemeral: true });
 
       const dm = await interaction.user.createDM();
       const fstColon = interaction.customId.indexOf(':');

@@ -1,10 +1,69 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, InteractionContextType, PermissionFlagsBits, SlashCommandBuilder, SlashCommandChannelOption, SlashCommandIntegerOption, SlashCommandNumberOption, SlashCommandStringOption } from 'discord.js';
+import { ActionRowBuilder, ApplicationCommandType, ButtonBuilder, ButtonStyle, ChannelType, ContextMenuCommandBuilder, InteractionContextType, Locale, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, SlashCommandChannelOption, SlashCommandNumberOption, SlashCommandStringOption, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 const rankChannelOption = (desc) => new SlashCommandChannelOption()
     .setName('rank_channel')
     .setDescription(desc)
     .addChannelTypes(ChannelType.GuildText)
     .setRequired(true);
+
+export const addGrade = {
+    data: new ContextMenuCommandBuilder()
+        .setName('addGrade')
+        .setNameLocalization(Locale.French, 'Ajouter une note (admin)')
+        .setType(ApplicationCommandType.Message)
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+        .setContexts(InteractionContextType.Guild),
+    async execute(interaction) {
+        if (interaction.targetMessage.author.id !== interaction.client.user.id || interaction.targetMessage.author.system)
+          return interaction.reply({ content: "Le message ciblé n'est pas un classement !", ephemeral: true });
+
+        const gradeInput = new TextInputBuilder()
+            .setCustomId('grade')
+            .setLabel(`Note`)
+            .setMinLength(1)
+            .setPlaceholder('Ex. 18,94')
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short);
+
+      const modal = new ModalBuilder()
+        .setCustomId(`add_grade:${interaction.targetId}`)
+        .setTitle('Ajouter une note (outil admin)')
+        .addComponents(new ActionRowBuilder().addComponents(gradeInput));
+
+        await interaction.showModal(modal);
+    }
+}
+
+export const removeGrade = {
+    data: new ContextMenuCommandBuilder()
+        .setName('removeGrade')
+        .setNameLocalization(Locale.French, 'Enlever une note (admin)')
+        .setType(ApplicationCommandType.Message)
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+        .setContexts(InteractionContextType.Guild),
+    async execute(interaction) {
+        if (interaction.targetMessage.author.id !== interaction.client.user.id || interaction.targetMessage.author.system)
+            return interaction.reply({ content: "Le message ciblé n'est pas un classement !", ephemeral: true });
+
+        if (interaction.targetMessage.content.split('\n').length === 2)
+            return interaction.reply({ content: 'Ce classement ne contient aucune note !', ephemeral: true });
+
+        const gradeInput = new TextInputBuilder()
+            .setCustomId('grade')
+            .setLabel(`Note à enlever`)
+            .setMinLength(1)
+            .setPlaceholder('Ex. 18,94')
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short);
+
+        const modal = new ModalBuilder()
+            .setCustomId(`remove_grade:${interaction.targetId}`)
+            .setTitle('Enlever une note (outil admin)')
+            .addComponents(new ActionRowBuilder().addComponents(gradeInput));
+
+        await interaction.showModal(modal);
+    }
+}
 
 export const reset = {
     data: new SlashCommandBuilder()
@@ -19,7 +78,7 @@ export const reset = {
             await channel.setTopic(`${interaction.id}:0`);
         } catch (e) {
             return interaction.reply({
-                content: `Impossible de réinitialiser le compteur dans ce canal pour le moment. Réessayez dans ${Math.ceil(e.retryAfter/1000/60)} minutes !`,
+                content: `Impossible de réinitialiser le compteur dans ce canal pour le moment. Réessayez dans ${Math.ceil(e.retryAfter/1000/60) + 1} minutes !`,
                 ephemeral: true,
             });
         }
@@ -66,7 +125,7 @@ export const rank = {
             await channel.setTopic(topic.join(':'));
         } catch (e) {
             return interaction.reply({
-                content: `Impossible de créer un nouveau classement dans ce canal pour le moment. Réessayez dans ${Math.ceil(e.retryAfter/1000/60)} minutes !`,
+                content: `Impossible de créer un nouveau classement dans ce canal pour le moment. Réessayez dans ${Math.ceil(e.retryAfter/1000/60) + 1} minutes !`,
                 ephemeral: true,
             });
         }
