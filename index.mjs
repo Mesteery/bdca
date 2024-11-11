@@ -62,16 +62,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await interaction.showModal(modal);
     } else if (interaction.isModalSubmit()) {
-      // admin tools
       let grade = interaction.fields.getTextInputValue('grade').replace(',', '.');
+
+      // admin tools
       if (interaction.customId.startsWith('remove_grade:')) {
         const message = await interaction.channel.messages.fetch(interaction.customId.slice('remove_grade:'.length)).catch(() => {});
-        if (!message)
-          return interaction.reply({ content: 'Le message ciblé n\'existe plus !', ephemeral: true });
+        if (!message) return interaction.reply({ content: 'Le message ciblé n\'existe plus !', ephemeral: true });
 
         const rankLines = message.content.split('\n');
-        if (rankLines.length === 2)
-          return interaction.reply({ content: 'Ce classement ne contient aucune note !', ephemeral: true });
+        if (rankLines.length === 2) return interaction.reply({ content: 'Ce classement ne contient aucune note !', ephemeral: true });
 
         let i;
         for (i = 3; i < rankLines.length; i++) {
@@ -88,20 +87,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
       grade = parseFloat(grade);
       if (interaction.customId.startsWith('add_grade:')) {
         const message = await interaction.channel.messages.fetch(interaction.customId.slice('add_grade:'.length)).catch(() => {});
-
-        if (!message || message.author.id !== client.user.id || message.author.system)
-          return interaction.reply({ content: "Le message ciblé n'est pas un classement !", ephemeral: true });
+        if (!message) return interaction.reply({ content: 'Le message ciblé n\'existe plus !', ephemeral: true });
 
         const rankLines = message.content.split('\n');
         await message.edit(addGradeToRank(rankLines, grade).join('\n'));
         return interaction.reply({ content: 'La note a bien été ajoutée à ce classement !', ephemeral: true });
       }
 
-      if (isNaN(grade) || grade < 0)
-        return interaction.reply({ content: 'Tu dois soumettre une note valide !', ephemeral: true });
+      if (isNaN(grade) || grade < 0) return interaction.reply({ content: 'Tu dois soumettre une note valide !', ephemeral: true });
 
       const rankLines = interaction.message.content.split('\n');
-      await interaction.update({ content: addGradeToRank(rankLines, grade).join('\n') });
+      await interaction.update(addGradeToRank(rankLines, grade).join('\n'));
       await interaction.followUp({ content: 'Ta note a bien été ajouté à ce classement !', ephemeral: true });
 
       const dm = await interaction.user.createDM();
@@ -112,7 +108,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const message = await dm.messages.fetch(interaction.customId.slice(0, fstColon));
         await message.edit(interaction.customId.slice(fstColon + 1));
       } catch {
-        await dm.send(interaction.customId.slice(1))
+        await dm.send(interaction.customId.slice(1));
       };
     }
   } catch (e) {
