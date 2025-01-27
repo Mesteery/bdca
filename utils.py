@@ -124,9 +124,8 @@ def estimate_missing_grades(known_grades: list[float], num_total_grades:int, min
   mu, sigma = stats.norm.fit(known_grades)
   lower, upper = (min_grade - mu) / sigma, (max_grade - mu) / sigma
   initial_guess = stats.truncnorm.rvs(lower, upper, loc=mu, scale=sigma, size=n_missing)
-  initial_guess = np.round(initial_guess, 1)
 
   bounds = [(min_grade, max_grade)] * n_missing
   result = minimize(error_function, initial_guess, bounds=bounds, method='L-BFGS-B', tol=1e-6)
 
-  return np.sort(np.round(result.x, 1)).tolist()
+  return np.sort(np.round(result.x, 2)).tolist()
