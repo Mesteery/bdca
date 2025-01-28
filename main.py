@@ -4,7 +4,7 @@ from typing import Optional
 import discord
 from discord import app_commands, Interaction
 from discord.ui import Modal, TextInput, View, Button
-from utils import add_grade_to_rank, build_rank_message, fill_rank, filter_real_grades, parse_data_lines, parse_message_rank, build_data_lines
+from utils import add_grade_to_rank, build_rank_lines, build_rank_message, fill_rank, filter_real_grades, parse_data_lines, parse_message_rank, build_data_lines
 
 TOKEN = os.getenv("CLIENT_TOKEN")
 if not TOKEN:
@@ -60,13 +60,12 @@ class AddGradeModal(Modal, title="Ta note"):
     
     await interaction.response.defer(thinking=True, ephemeral=True)
     
-    title, data_lines, rank_lines = parse_message_rank(interaction.message.content)
+    title, data_lines, ranks = parse_message_rank(interaction.message.content)
 
-    rank_lines = add_grade_to_rank(filter_real_grades(rank_lines), grade)
+    ranks = add_grade_to_rank(filter_real_grades(ranks), [grade])
+    ranks = fill_rank(parse_data_lines(data_lines), ranks)
 
-    rank_lines = fill_rank(parse_data_lines(data_lines), rank_lines)
-
-    await interaction.message.edit(content=build_rank_message(title, data_lines, rank_lines))
+    await interaction.message.edit(content=build_rank_message(title, data_lines, build_rank_lines(ranks)))
     await interaction.followup.send("Ta note a bien été ajoutée à ce classement !", ephemeral=True)
   
     dm = await interaction.user.create_dm()
@@ -187,11 +186,11 @@ class AdminAddGradeModal(Modal, title="Ajouter une note (outil admin)"):
     
     await interaction.response.defer(thinking=True, ephemeral=True)
 
-    title, data_lines, rank_lines = parse_message_rank(message.content)
-    rank_lines = add_grade_to_rank(filter_real_grades(rank_lines), grade)
-    rank_lines = fill_rank(parse_data_lines(data_lines), rank_lines)
+    title, data_lines, ranks = parse_message_rank(message.content)
+    ranks = add_grade_to_rank(filter_real_grades(ranks), [grade])
+    ranks = fill_rank(parse_data_lines(data_lines), ranks)
 
-    await message.edit(content=build_rank_message(title, data_lines, rank_lines))
+    await message.edit(content=build_rank_message(title, data_lines, build_rank_lines(ranks)))
 
     await interaction.followup.send("La note a bien été ajoutée à ce classement !", ephemeral=True)
 
@@ -232,26 +231,23 @@ class AdminRemoveGradeModal(Modal, title="Enlever une note (outil admin)"):
     if not message:
       return await interaction.response.send_message("Le message ciblé n'existe plus !", ephemeral=True)
     
-    title, data_lines, rank_lines = parse_message_rank(message.content)
-
-    rank_lines = filter_real_grades(rank_lines)
+    title, data_lines, ranks = parse_message_rank(message.content)
+    ranks = filter_real_grades(ranks)
 
     i = 0
-    for i, line in enumerate(rank_lines):
-      if float(line[9:]) == grade:
+    for i, cgrade in enumerate(ranks):
+      if float(cgrade) == grade:
         break
     else:
       return await interaction.response.send_message("Cette note n'existe pas dans ce classement !", ephemeral=True)
     
     await interaction.response.defer(thinking=True, ephemeral=True)
 
-    rank_lines.pop(i)
-    for j in range(i, len(rank_lines)):
-      rank_lines[j] = f"**{(j + 1):>2}{rank_lines[j][4:]}"
+    ranks.pop(i)
 
-    rank_lines = fill_rank(parse_data_lines(data_lines), rank_lines)
+    ranks = fill_rank(parse_data_lines(data_lines), ranks)
 
-    await message.edit(content=build_rank_message(title, data_lines, rank_lines))
+    await message.edit(content=build_rank_message(title, data_lines, build_rank_lines(ranks)))
     await interaction.followup.send("La note a bien été enlevé de ce classement !", ephemeral=True)
 
 @client.tree.context_menu(name="Enlever une note (admin)")
@@ -338,7 +334,13 @@ class AdminFillGradesModal(Modal, title="Estimer les notes manquantes (outil adm
     
     await interaction.response.defer(thinking=True, ephemeral=True)
 
-    title, old_data, rank_lines = parse_message_rank(message.content)
+    title, old_data, ranks = parse_message_rank(message.content)
+    
+    if min_grade > max_grade or median < min_grade or median > max_grade or mean < min_grade or mean > max_grade:
+      return await interaction.followup.send("Tu dois soumettre des valeurs valides !", ephemeral=True)
+
+    if total_grades == 0:
+      total_grades = min_grade = max_grade = median = mean = std = None
 
     data = {
       'total': total_grades,
@@ -350,9 +352,9 @@ class AdminFillGradesModal(Modal, title="Estimer les notes manquantes (outil adm
       'scale': parse_data_lines(old_data)['scale'],
     }
 
-    rank_lines = fill_rank(data, filter_real_grades(rank_lines))
+    ranks = fill_rank(data, filter_real_grades(ranks))
 
-    await message.edit(content=build_rank_message(title, build_data_lines(data), rank_lines))
+    await message.edit(content=build_rank_message(title, build_data_lines(data), build_rank_lines(ranks)))
     await interaction.followup.send("Le classement a bien été complété !", ephemeral=True)
 
 @client.tree.context_menu(name="Notes manquantes (admin)")

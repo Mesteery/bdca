@@ -5,28 +5,30 @@ from scipy.optimize import minimize
 
 np.random.seed(861)
 
-def add_grade_to_rank(rank_lines: list[str], grade: float, fmt: Optional[str] = "") -> list[str]:
-  i = 0
-  if len(rank_lines) > 0:
-    for i, line in enumerate(rank_lines):
-      current_grade = line[9:]
-      if not line[9].isdigit():
-        i = 0
-        for i, c in enumerate(current_grade):
-          if c.isdigit(): break
-        current_grade = current_grade[i:-i]
+def add_grade_to_rank(ranks: list[str], grades: list[float], fmt: Optional[str] = "") -> list[str]:
+  if len(ranks) > 0:
+    grades = grades.copy()
+    new_ranks = []
 
-      if grade >= float(current_grade): break
-    else: i += 1
+    for og_grade in ranks:
+      current_grade = float(og_grade)
 
-  rank_lines.insert(i, f"**{(i + 1):>2}** - {fmt}{grade}{fmt}")
-  for j in range(i + 1, len(rank_lines)):
-    rank_lines[j] = f"**{(j + 1):>2}{rank_lines[j][4:]}"
+      while len(grades) > 0 and grades[-1] >= current_grade:
+        new_ranks.append(f"{fmt}{grades.pop():g}{fmt}")
+      
+      new_ranks.append(og_grade)
+    else:
+      new_ranks.extend([f"{fmt}{grade:g}{fmt}" for grade in grades[::-1]])
 
-  return rank_lines
+    return new_ranks
+  
+  return [f"{fmt}{grade:g}{fmt}" for grade in grades[::-1]]
 
-def filter_real_grades(rank_lines: list[str]) -> list[float]:
-  return [line for line in rank_lines if line[9].isdigit()]
+def build_rank_lines(ranks: list[str]) -> list[str]:
+  return [f"**{i + 1:>2}** - {rank}" for i, rank in enumerate(ranks)]
+
+def filter_real_grades(ranks: list[str]) -> list[str]:
+  return [grade for grade in ranks if grade[0].isdigit()]
 
 def parse_message_rank(content: str) -> tuple[str, list[str], list[str]]:
   lines = content.splitlines()
@@ -39,7 +41,10 @@ def parse_message_rank(content: str) -> tuple[str, list[str], list[str]]:
   except ValueError:
     lines.append('')
 
-  return title, lines[:data_end], lines[data_end:]
+  rank_lines = lines[data_end:]
+  ranks = [line.split('-', 1)[1].strip() for line in rank_lines]
+
+  return title, lines[:data_end], ranks
 
 def build_rank_message(title, data_lines: list[str], rank_lines: list[str]) -> str:
   return title + '\n' + '\n'.join(data_lines) + '\n' + '\n'.join(rank_lines)
@@ -72,18 +77,20 @@ def parse_data_lines(data_lines: list[str]) -> dict[str, Union[int, float]]:
 def build_data_lines(data: dict[str, Union[int, float]]) -> list[str]:
   return [f"> **{name}** : {data[key]}" for name, (key, _, _) in DATA_LINES_MAPPING.items() if key in data and data[key]] + ['']
 
-def fill_rank(data: dict[str, Union[int, float]], rank_lines: list[str]) -> list[str]:
+def fill_rank(data: dict[str, Union[int, float]], ranks: list[str]) -> list[str]:
   if data['total'] is None or data['min'] is None or data['max'] is None or data['median'] is None or data['mean'] is None:
-    return rank_lines
+    return ranks
 
-  known_grades = [float(line[9:]) for line in rank_lines]
+  known_grades = list(map(float, ranks))
 
+  min = None
+  max = None
   if not data['min'] in known_grades:
     known_grades.append(data['min'])
-    rank_lines = add_grade_to_rank(rank_lines, data['min'])
+    min = data['min']
   if not data['max'] in known_grades:
     known_grades.append(data['max'])
-    rank_lines = add_grade_to_rank(rank_lines, data['max'])
+    max = data['max']
 
   missing_grades = estimate_missing_grades(
     known_grades,
@@ -94,11 +101,15 @@ def fill_rank(data: dict[str, Union[int, float]], rank_lines: list[str]) -> list
     data['mean'],
     data['std']
   )
+  
+  if max is not None:
+    missing_grades.append(max)
+  if min is not None:
+    missing_grades.insert(0, min)
 
-  for grade in missing_grades:
-    rank_lines = add_grade_to_rank(rank_lines, grade, '||')
+  print(missing_grades)
 
-  return rank_lines
+  return add_grade_to_rank(ranks, missing_grades, '||')
 
 def estimate_missing_grades(known_grades: list[float], num_total_grades:int, min_grade:float, max_grade:float, median_target:float, mean_target:float, std_dev_target:float=0.) -> list[float]:
   known_grades = np.array(known_grades)
